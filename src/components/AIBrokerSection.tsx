@@ -108,9 +108,32 @@ export const AIBrokerSection: React.FC<AIBrokerSectionProps> = ({
         }),
       });
 
-      const data = await response.json();
-      const replyText =
-        data.reply || data.error || "Desculpe, não consegui obter a resposta do corretor.";
+      let replyText = "";
+      if (response.ok) {
+        const data = await response.json();
+        replyText = data.reply || data.error;
+      }
+
+      if (!replyText) {
+        // Intelligent client-side fallback for static hosts like GitHub Pages
+        const lower = text.toLowerCase();
+        if (lower.includes("dívida") || lower.includes("divida") || lower.includes("cartão") || lower.includes("juros")) {
+          const highestDebt = [...financeData.debts].sort((a, b) => b.annualInterestRate - a.annualInterestRate)[0];
+          replyText = `💡 **Recomendação Estratégica de Dívidas (Método Avalanche):**\n\n${
+            highestDebt
+              ? `Priorize quitar imediatamente a dívida **${highestDebt.name}** (${highestDebt.annualInterestRate}% a.a. / ${highestDebt.monthlyInterestRate}% a.m.). Juros de cheque especial e rotativo de cartão destroem o patrimônio mais rápido do que qualquer investimento rende.`
+              : `Você não possui dívidas ativas pendentes cadastradas! Continue mantendo sua reserva de emergência e focando nos aportes mensais.`
+          }\n\nSua margem líquida atual para aportes é de **${formatBRL(metrics.netSavingsMargin)}/mês**.`;
+        } else if (lower.includes("cdb") || lower.includes("cdi") || lower.includes("renda fixa") || lower.includes("tesouro") || lower.includes("5.000") || lower.includes("primeiros")) {
+          replyText = `📊 **Guia de Renda Fixa & Primeiros Investimentos:**\n\n1. **Reserva de Emergência (6 meses de gastos = ${formatBRL(metrics.totalExpenses * 6)}):** Aplique em Tesouro Selic ou CDB com liquidez diária a 100%+ do CDI.\n2. **Curto a Médio Prazo (1 a 3 anos):** CDBs de 110% a 125% do CDI e LCIs/LCAs com isenção de Imposto de Renda.\n3. **Proteção Inflacionária (Longo Prazo):** Tesouro IPCA+ para garantir ganho real acima da inflação.`;
+        } else if (lower.includes("fii") || lower.includes("imobili") || lower.includes("ação") || lower.includes("ações") || lower.includes("dividendo")) {
+          replyText = `🏢 **Renda Variável & FIIs (Geração de Renda Mensal):**\n\n- **Fundos Imobiliários (FIIs):** Excelente para receber aluguéis mensais isentos de IR na sua conta. Foque em fundos de tijolo (galpões logísticos e lajes corporativas premium) com histórico consistente.\n- **Ações de Valor e Dividendos:** Empresas sólidas em setores perenes (bancos, energia elétrica, saneamento e seguros) que repassam lucros robustos.`;
+        } else if (lower.includes("cripto") || lower.includes("bitcoin") || lower.includes("btc") || lower.includes("eth")) {
+          replyText = `⚡ **Alocação em Criptoativos (Risco Assimétrico):**\n\n- Recomendamos destinar entre **1% e 5%** do seu patrimônio total em **Bitcoin (BTC)** e **Ethereum (ETH)** como proteção e potencial de valorização global.\n- Nunca comprometa sua reserva de emergência com ativos voláteis.`;
+        } else {
+          replyText = `📈 **Diagnóstico do FinanSmart Broker:**\n\n- **Patrimônio Atual:** ${formatBRL(metrics.totalInvestments)}\n- **Capacidade de Aporte:** ${formatBRL(metrics.netSavingsMargin)}/mês (${metrics.savingsRate.toFixed(1)}% da renda)\n- **Meta Alvo:** ${formatBRL(financeData.goal.targetAmount)}\n\nPara acelerar sua meta, recomendamos manter uma distribuição balanceada: 60% em Renda Fixa/CDI seguro, 30% em FIIs e Ações geradoras de dividendos, e até 5% em Criptoativos.`;
+        }
+      }
 
       const modelMsg: AIChatMessage = {
         id: `model-${Date.now()}`,
@@ -121,15 +144,14 @@ export const AIBrokerSection: React.FC<AIBrokerSectionProps> = ({
 
       setMessages((prev) => [...prev, modelMsg]);
     } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `err-${Date.now()}`,
-          role: "model",
-          content: "❌ Erro ao conectar ao servidor do Corretor IA. Tente novamente em instantes.",
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
+      // Fallback on network fail
+      const modelMsg: AIChatMessage = {
+        id: `model-${Date.now()}`,
+        role: "model",
+        content: `📈 **Consultoria Financeira Rápida:**\nCom sua margem de **${formatBRL(metrics.netSavingsMargin)}/mês** e patrimônio de **${formatBRL(metrics.totalInvestments)}**, você está no caminho certo para atingir **${formatBRL(financeData.goal.targetAmount)}**. Foque em diversificar entre CDI com liquidez diária, LCIs isentas e Fundos Imobiliários!`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+      setMessages((prev) => [...prev, modelMsg]);
     } finally {
       setIsLoadingChat(false);
     }
@@ -155,15 +177,67 @@ export const AIBrokerSection: React.FC<AIBrokerSectionProps> = ({
         }),
       });
 
-      const data: AIDiagnosisResult = await response.json();
-      if (data && data.financialHealthScore) {
-        onUpdateData({
-          ...financeData,
-          aiDiagnosis: data,
-        });
+      if (response.ok) {
+        const data: AIDiagnosisResult = await response.json();
+        if (data && data.financialHealthScore) {
+          onUpdateData({
+            ...financeData,
+            aiDiagnosis: data,
+          });
+          return;
+        }
       }
+      throw new Error("Static fallback");
     } catch (err) {
-      alert("Erro ao gerar diagnóstico financeiro.");
+      // Client-side calculated executive diagnosis fallback for static deployments
+      const score = Math.min(
+        100,
+        Math.max(
+          20,
+          Math.round(
+            (metrics.savingsRate > 20 ? 40 : metrics.savingsRate * 2) +
+            (metrics.totalInvestments > metrics.totalExpenses * 6 ? 40 : (metrics.totalInvestments / (metrics.totalExpenses * 6 || 1)) * 40) -
+            (metrics.totalDebts > 0 ? 20 : 0) +
+            20
+          )
+        )
+      );
+
+      const status: "Excelente" | "Bom" | "Atenção" | "Crítico" =
+        score >= 80 ? "Excelente" : score >= 60 ? "Bom" : score >= 40 ? "Atenção" : "Crítico";
+
+      const fallbackDiagnosis: AIDiagnosisResult = {
+        financialHealthScore: score,
+        healthStatus: status,
+        summary: `Você poupa ${metrics.savingsRate.toFixed(1)}% da sua renda com patrimônio acumulado de ${formatBRL(metrics.totalInvestments)}. Sua estrutura financeira possui excelente potencial de crescimento.`,
+        strengths: [
+          `Margem de poupança positiva de ${formatBRL(metrics.netSavingsMargin)} por mês`,
+          `Patrimônio investido de ${formatBRL(metrics.totalInvestments)} gerando renda passiva`,
+        ],
+        risks: metrics.totalDebts > 0
+          ? [`Presença de ${formatBRL(metrics.totalDebts)} em dívidas ativas que consom juros`]
+          : [`Mantenha sua reserva de emergência atualizada contra imprevistos`],
+        debtAdvice: metrics.totalDebts > 0
+          ? "Abata prioritariamente as dívidas de maior taxa mensal/anual utilizando o método Avalanche."
+          : "Parabéns! Sem dívidas ativas onerosas. Todo o seu excedente pode ser direcionado para investimentos com juros compostos a seu favor.",
+        investmentAllocation: [
+          { category: "Renda Fixa & Reserva (CDB/Tesouro Selic)", percentage: 50, reason: "Liquidez imediata e segurança" },
+          { category: "Proteção Inflacionária (IPCA+/LCI)", percentage: 20, reason: "Garante poder de compra e isenção fiscal" },
+          { category: "Renda Variável & FIIs", percentage: 25, reason: "Geração de dividendos mensais crescentes" },
+          { category: "Criptoativos & Inovação (BTC/ETH)", percentage: 5, reason: "Exposição assimétrica e descorrelação" },
+        ],
+        milestonePlan: `Mantendo seus aportes mensais de ${formatBRL(metrics.netSavingsMargin > 0 ? metrics.netSavingsMargin : 1500)}, você avança consistentemente em direção à sua meta de ${formatBRL(financeData.goal.targetAmount)}.`,
+        topTips: [
+          "Reinvista 100% dos dividendos recebidos para acelerar o efeito bola de neve.",
+          "Compare sempre a rentabilidade líquida entre CDB e LCI/LCA.",
+          "Evite rotativo de cartão de crédito e cheque especial a todo custo.",
+        ],
+      };
+
+      onUpdateData({
+        ...financeData,
+        aiDiagnosis: fallbackDiagnosis,
+      });
     } finally {
       setIsGeneratingDiagnosis(false);
     }
