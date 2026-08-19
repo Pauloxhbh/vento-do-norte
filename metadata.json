@@ -2,5 +2,7 @@
   "name": "FinanSmart - Gestão Financeira & Corretor de Investimentos",
   "description": "Aplicativo completo de finanças pessoais: diagnóstico de renda, trilha monetária para metas, corretor IA de investimentos (CDB, CDI, Ações, Cripto), divisão inteligente de contas e plano de quitação de dívidas por juros.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
